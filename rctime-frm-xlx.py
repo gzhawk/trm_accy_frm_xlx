@@ -12,27 +12,26 @@ It's collecting the B5K's re-convergent data, based on below rules:
 3.1 when it goes back to RTX from lost, only compare the "Pos Accy (m)" value with the numbers in accy_list
 """
 
-xver = '0.7'
+xver = '0.8'
 import os
 import sys
 import openpyxl
 
 #------change below code based on your requirement------
 
-xlx_path    = 'C:\\Work\\Tools\\rctime_from_xlx\\'
-#xlx_path   = '/Users/Hawk/Downloads/'
-xlx_name    = 'sv_example_22020831'
+#xlx_path    = 'C:\\Work\\Tools\\rctime_from_xlx\\'
+xlx_path   = '/Users/Hawk/Downloads/'
+xlx_name    = '22020831_sv_example'
 xlx_tail    = '.xlsx'
 output_tail = '.csv'
 # RTX lost period threshold (s), 0 means no threshold
-# TBD: has to be > 1, or there would be a last item missing in List condition
-L_threshold = 1 
+L_threshold = 0
 # 0: Average, 1: Listed
-Avg_or_List = 1
+Avg_or_List = 0
 # it has to be only 3, and has to be (left one > right one)
 accy_list   = [0.1, 0.05, 0.02]
 # show more information in infox block
-for_dbg     = 1
+for_dbg     = 0
 
 #------DO NOT change below code if you don't know how to do so------
 
@@ -51,8 +50,8 @@ x_gps_l     = [0, 0, 0]
 c_count     = 0
 c_trig      = 9
 c_flag      = 0
-c_skip      = 10#5
-c_anum      = 10#8
+c_skip      = 5#10
+c_anum      = 8#10
 c_acc_1     = 0
 c_acc_2     = 0
 c_row_fix   = 0
@@ -65,6 +64,7 @@ c_msg += '\n info2 - previous index smaller than skip+avgnum'
 c_msg += '\n info3 - previous fixed average item not in fix mode'
 c_msg += '\n info4 - fixed average item not in fix mode'
 c_msg += '\n info5 - RTX lost period too short'
+c_msg += '\n info6 - file end'
 c_msg += '\n'
 c_msg += '\nIndex,StartLon,StartLat,StartTime,EndLon,EndLat,EndTime,RTXLostPeriod(s),'
 
@@ -114,6 +114,7 @@ with open(output_file, 'w') as c_log:
                 else:
                     c_msg += ',info1'
                 c_log.write(str(c_msg))
+                c_msg = 0
                 continue
         else:# Goes into fix
             if c_flag == 0: 
@@ -142,6 +143,7 @@ with open(output_file, 'w') as c_log:
                         else:
                             c_msg += ',info5'
                         c_log.write(c_msg)
+                        c_msg = 0
                         x_gps = 0 
                         x_gps_l[0] = 0 
                         x_gps_l[1] = 0 
@@ -169,6 +171,7 @@ with open(output_file, 'w') as c_log:
                         else:
                             c_msg += ',info2'
                         c_log.write(c_msg)
+                        c_msg = 0
                         continue
                     for row_2 in range(c_row_fix - c_skip - c_anum, c_row_fix - c_skip):
                         # make sure each item still in fix mode
@@ -182,7 +185,10 @@ with open(output_file, 'w') as c_log:
                             else:
                                 c_msg += ',info3'
                             c_log.write(c_msg)
+                            c_msg = 0
                             break
+                    if c_msg == 0:
+                        continue
                     c_acc_1 /= c_anum
                     c_msg += ','
                     c_msg += str(format(c_acc_1,'.2f')) # StartAccy
@@ -218,7 +224,10 @@ with open(output_file, 'w') as c_log:
                                 else:
                                     c_msg += ',info4'
                                 c_log.write(c_msg)
+                                c_msg = 0
                                 break
+                        if c_msg == 0:
+                            continue
                         c_acc_2 /= c_anum
                         # Check if the average lower than expected
                         if c_acc_1 < c_acc_2:
@@ -236,11 +245,18 @@ with open(output_file, 'w') as c_log:
                     else:
                         continue
                 c_log.write(c_msg)
+                c_msg = 0
                 x_gps = 0 
                 x_gps_l[0] = 0 
                 x_gps_l[1] = 0 
                 x_gps_l[2] = 0
                 c_flag = 0
+    if c_msg: # collect the last line
+        if for_dbg:
+            c_msg += ',info6(' + str(row_1) + ')'
+        else:
+            c_msg += ',info6'
+        c_log.write(c_msg)
     c_msg = '\n\nProcess ' + str(row_1 - 1) + ' lines\n'
     c_msg += '\nLog path:' + output_file
     c_log.write(c_msg)
