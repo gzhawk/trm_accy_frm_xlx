@@ -2,35 +2,44 @@
 It's collecting the B5K's re-convergent data, based on below rules:
 1. record the period which fix type from RTX(9) to none RTX as RTX Lost Period
 
-2. when acitve "average" value for re-convergent calculation (Avg_or_List == 0)
-2.1 when it goes back to RTX from lost, skip c_skip number ahead data (from previous lost RTX position)
-2.2 then start collect continuous c_anum numbers of average "Pos Accy (m)" value (accy_1) as comparision base number
-2.3 check continuous c_anum numbers of average "Pos Accy (m)" value (accy_2) beginning with RTX recovered point
+2. when acitve "average" value for re-convergent calculation (accy_list[0] == 0)
+2.1 when it goes back to RTX from lost, skip skip_num ahead of data from the previous RTX fix position, for stable value
+2.2 then start collect continuous avg_num numbers of average "Pos Accy (m)" value (accy_1) as comparision base number
+2.3 check continuous avg_num numbers of average "Pos Accy (m)" value (accy_2) beginning with RTX recovered point
 2.4 once accy_2 <= accy_1, consider this preriod as re-convergent time
 
-3. when acitve "list" value for re-convergent calculation (Avg_or_List == 1)
+3. when acitve "list" value for re-convergent calculation (accy_list[0] != 0)
 3.1 when it goes back to RTX from lost, only compare the "Pos Accy (m)" value with the numbers in accy_list
 """
 
-xver = '0.8'
-import os
-import sys
-import openpyxl
+xver        = '0.9'
+import      os
+import      sys
+import      openpyxl
 
 #------change below code based on your requirement------
 
 #xlx_path    = 'C:\\Work\\Tools\\rctime_from_xlx\\'
-xlx_path   = '/Users/Hawk/Downloads/'
-xlx_name    = '22020831_sv_example'
+xlx_path    = '/Users/Hawk/Downloads/'
+xlx_name    = 'sv_example'
 xlx_tail    = '.xlsx'
 output_tail = '.csv'
+
 # RTX lost period threshold (s), 0 means no threshold
 L_threshold = 0
-# 0: Average, 1: Listed
-Avg_or_List = 0
+
 # it has to be only 3, and has to be (left one > right one)
+# if accy_list[0] == 0, it means use average value instead of list value
 accy_list   = [0.1, 0.05, 0.02]
-# show more information in infox block
+
+#2.1 when it goes back to RTX from lost, skip skip_num ahead of data from the previous RTX fix position, for stable value
+skip_num    = 5#10
+
+#2.2 then start collect continuous avg_num numbers of average "Pos Accy (m)" value (accy_1) as comparision base number
+#2.3 check continuous avg_num numbers of average "Pos Accy (m)" value (accy_2) beginning with RTX recovered point
+avg_num     = 8#10
+
+# show more information in infoX
 for_dbg     = 0
 
 #------DO NOT change below code if you don't know how to do so------
@@ -44,14 +53,12 @@ x_fix       = 18
 x_lon       = 9
 x_lat       = 10
 x_posacc    = 29
-x_gps_max   = 86400
+x_gps_max   = 86400#24 hours in seconds
 x_gps       = 0
 x_gps_l     = [0, 0, 0]
 c_count     = 0
 c_trig      = 9
 c_flag      = 0
-c_skip      = 5#10
-c_anum      = 8#10
 c_acc_1     = 0
 c_acc_2     = 0
 c_row_fix   = 0
@@ -68,7 +75,7 @@ c_msg += '\n info6 - file end'
 c_msg += '\n'
 c_msg += '\nIndex,StartLon,StartLat,StartTime,EndLon,EndLat,EndTime,RTXLostPeriod(s),'
 
-if Avg_or_List == 0:
+if accy_list[0] == 0:
     c_msg += 'StartAccy,EndAccy,ReCnvtPeriod(s)'
     output_file = xlx_path+xlx_name+'_avg'+output_tail
 else:
@@ -151,19 +158,19 @@ with open(output_file, 'w') as c_log:
                         c_flag = 0
                         continue
 
-                    # Start the re-convergent calculation
+                    # Start the reconvergence calculation
                     c_acc_1 = 0
                     c_flag = 2 
                     # Keep it for later calculation
                     x_gps = xlx_sht.cell(row_1, x_gpstime).value
-                    if Avg_or_List == 1:
+                    if accy_list[0] != 0:
                         x_gps_l[0] = xlx_sht.cell(row_1, x_gpstime).value 
                         x_gps_l[1] = xlx_sht.cell(row_1, x_gpstime).value 
                         x_gps_l[2] = xlx_sht.cell(row_1, x_gpstime).value 
                         continue
                     
-                    # Average of c_anum numbers of data after skip c_skip numbers of data 
-                    if c_row_fix < (c_skip + c_anum):
+                    # Average of avg_num numbers of data after skip skip_num numbers of data 
+                    if c_row_fix < (skip_num + avg_num):
                         c_flag = 0
                         x_gps = 0
                         if for_dbg:
@@ -173,7 +180,7 @@ with open(output_file, 'w') as c_log:
                         c_log.write(c_msg)
                         c_msg = 0
                         continue
-                    for row_2 in range(c_row_fix - c_skip - c_anum, c_row_fix - c_skip):
+                    for row_2 in range(c_row_fix - skip_num - avg_num, c_row_fix - skip_num):
                         # make sure each item still in fix mode
                         if c_trig == xlx_sht.cell(row_2, x_fix).value:
                             c_acc_1 +=  xlx_sht.cell(row_2, x_posacc).value
@@ -189,11 +196,11 @@ with open(output_file, 'w') as c_log:
                             break
                     if c_msg == 0:
                         continue
-                    c_acc_1 /= c_anum
+                    c_acc_1 /= avg_num
                     c_msg += ','
                     c_msg += str(format(c_acc_1,'.2f')) # StartAccy
             elif c_flag == 2: # Fix back, start reconvergence calculation
-                if Avg_or_List == 1:
+                if accy_list[0] != 0:
                     for i in range(3):
                         if x_gps_l[i] != 0:
                             if accy_list[i] >= xlx_sht.cell(row_1, x_posacc).value:
@@ -208,11 +215,11 @@ with open(output_file, 'w') as c_log:
                     if x_gps_l[0] !=0 or x_gps_l[1] !=0 or x_gps_l[2] != 0:
                         continue
                 else:
-                    # Start to get average of c_anum number of data
+                    # Start to get average of avg_num number of data
                     if c_acc_1 >= xlx_sht.cell(row_1, x_posacc).value:
-                        # Average of c_anum numbers of data
+                        # Average of avg_num numbers of data
                         c_acc_2 = 0
-                        for row_2 in range(row_1, row_1+c_anum):
+                        for row_2 in range(row_1, row_1+avg_num):
                             # make sure each item still in fix mode
                             if c_trig == xlx_sht.cell(row_2, x_fix).value:
                                 c_acc_2 +=  xlx_sht.cell(row_2, x_posacc).value
@@ -228,7 +235,7 @@ with open(output_file, 'w') as c_log:
                                 break
                         if c_msg == 0:
                             continue
-                        c_acc_2 /= c_anum
+                        c_acc_2 /= avg_num
                         # Check if the average lower than expected
                         if c_acc_1 < c_acc_2:
                             continue
