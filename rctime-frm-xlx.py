@@ -1,6 +1,9 @@
 """
 It's collecting the B5K's re-convergent data, based on below rules:
-1. record the period which fix type from RTX(9) to none RTX as RTX Lost Period
+1. record the period which 'Fix Type' in xlx from RTX(9) to none RTX as RTX Lost Period, 
+    or 'GNSS State' in xlx from useing GNSS (0) to not using GNSS (5) as GNSS lost period.
+1.1 have to be manually selected (x_trig, c_trig), I'm not going to make it automatically or give all avaiable
+    no one care about this code, and I'm lazy.
 
 2. when acitve "average" value for re-convergent calculation (accy_list[0] == 0)
 2.1 when it goes back to RTX from lost, skip skip_num ahead of data from the previous RTX fix position, for stable value
@@ -12,7 +15,7 @@ It's collecting the B5K's re-convergent data, based on below rules:
 3.1 when it goes back to RTX from lost, only compare the "Pos Accy (m)" value with the numbers in accy_list
 """
 
-xver        = '0.9'
+xver        = '0.10'
 import      os
 import      sys
 import      openpyxl
@@ -49,7 +52,8 @@ xlx_sht = xlx_wb[xlx_wb.sheetnames[0]]
 
 x_gpstime   = 3
 x_time      = 7
-x_fix       = 18
+#x_trig      = 18 #use 'Fix Type' for trigger RTX lost period
+x_trig      = 37 #use 'GNSS State' to trigger the GNSS lost period
 x_lon       = 9
 x_lat       = 10
 x_posacc    = 29
@@ -57,7 +61,8 @@ x_gps_max   = 86400#24 hours in seconds
 x_gps       = 0
 x_gps_l     = [0, 0, 0]
 c_count     = 0
-c_trig      = 9
+#c_trig      = 9 #use 'Fix Type' for trigger RTX lost period
+c_trig      = 0 #use 'GNSS State' to trigger the GNSS lost period
 c_flag      = 0
 c_acc_1     = 0
 c_acc_2     = 0
@@ -90,7 +95,7 @@ else:
 with open(output_file, 'w') as c_log:
     c_log.write(c_msg)
     for row_1 in range(2, xlx_sht.max_row+1):
-        if c_trig != xlx_sht.cell(row_1, x_fix).value:
+        if c_trig != xlx_sht.cell(row_1, x_trig).value:
             # Never goes into fix yet
             if c_flag == 0: 
                 continue
@@ -182,7 +187,7 @@ with open(output_file, 'w') as c_log:
                         continue
                     for row_2 in range(c_row_fix - skip_num - avg_num, c_row_fix - skip_num):
                         # make sure each item still in fix mode
-                        if c_trig == xlx_sht.cell(row_2, x_fix).value:
+                        if c_trig == xlx_sht.cell(row_2, x_trig).value:
                             c_acc_1 +=  xlx_sht.cell(row_2, x_posacc).value
                         else:
                             c_flag = 1 # Fix lost start
@@ -221,7 +226,7 @@ with open(output_file, 'w') as c_log:
                         c_acc_2 = 0
                         for row_2 in range(row_1, row_1+avg_num):
                             # make sure each item still in fix mode
-                            if c_trig == xlx_sht.cell(row_2, x_fix).value:
+                            if c_trig == xlx_sht.cell(row_2, x_trig).value:
                                 c_acc_2 +=  xlx_sht.cell(row_2, x_posacc).value
                             else:
                                 c_flag = 1 # Fix lost start
